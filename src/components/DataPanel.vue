@@ -79,7 +79,7 @@ export default {
 </script>
 <style>
 .data-panel {
-  max-height: 72vh;
+  max-height: 64vh;
   overflow-y: auto;
 }
 </style>
