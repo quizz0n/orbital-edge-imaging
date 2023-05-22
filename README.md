@@ -29,3 +29,10 @@ npm install
 ```
 npm run dev
 ```
+
+### AOI sample file
+
+The repository includes a sample GeoJSON file in the root directory that can be used to test the application.
+```
+orbital-edge-imaging/aoi-sm.geojson
+```
