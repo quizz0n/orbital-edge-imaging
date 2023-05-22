@@ -10,33 +10,40 @@ import { useStore } from 'vuex';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import axios from 'axios';
-import getWmsBoundsModule from '@/js/getWmsBounds';
 
 export default {
   name: 'OeiMapPanel',
-  emits: ['attr-fetched'],
   props: {
-    lyrRq: {
+    aoiExtent: {
       type: Object,
+      required: false,
+    },
+    lyrRq: {
+      type: [Object, Boolean],
       required: false,
     },
   },
   setup(props) {
-    const map = ref(null);
     const store = useStore();
 
+    const mapRef = ref(null);
+    const onMapReady = (map) => {
+      mapRef.value = map;
+    };
+
     onMounted(() => {
-      map.value = L.map('mapContainer').setView([51.175, 10.454], 5);
+      mapRef.value = L.map('mapContainer').setView([51.175, 10.454], 5);
       L.tileLayer(
         'http://{s}.tile.osm.org/{z}/{x}/{y}.png',
-        { attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors' },
-      ).addTo(map.value);
+        { attribution: 'Map data © <a href="https://openstreetmapRef.org">OpenStreetMap</a> contributors' },
+      ).addTo(mapRef.value);
     });
 
     const currentLayer = computed(() => store.getters.getSelectedLayer);
+    const aoiExtent = computed(() => store.state.aoiExtent);
     const layerReqUrl = computed(() => props.lyrRq);
+    const aoiLayer = ref(null);
     const vectorLayer = ref(null);
-    const wmsLayer = ref(null);
     const features = ref([]);
     const geoJSONData = ref(null);
 
@@ -54,95 +61,151 @@ export default {
       layer.bindPopup(popupContent);
     }
 
-    async function addVectorLayer(requestUrl, params) {
+    async function addUploadedAoi(filteredBounds) {
       try {
         if (vectorLayer.value) {
-          map.value.removeLayer(vectorLayer.value);
+          mapRef.value.removeLayer(vectorLayer.value);
           vectorLayer.value = null;
         }
 
-        const response = await axios.get(requestUrl, { params });
-        geoJSONData.value = response.data;
-        vectorLayer.value = L.geoJSON(geoJSONData.value, { onEachFeature }).addTo(map.value);
+        aoiLayer.value = L.geoJSON(filteredBounds).addTo(mapRef.value);
+
+        aoiLayer.value.setStyle({
+          color: '#840032',
+          weight: 3,
+          opacity: 1,
+          fillOpacity: 0,
+        });
+
+        mapRef.value.fitBounds(aoiLayer.value.getBounds());
       } catch (error) {
-        console.error('Failed to fetch GeoJSON data:', error);
+        console.error(error);
       }
     }
 
-    async function addWmsLayer(requestUrl, options) {
-      wmsLayer.value = L.tileLayer.wms(requestUrl, options).addTo(map.value);
-      wmsLayer.value.on('load', async () => {
-        const bounds = await getWmsBoundsModule.getWmsBounds(currentLayer.value.url);
-        map.value.fitBounds(bounds);
-      });
-    }
-
-    async function handleLayerSelection() {
-      if (currentLayer.value) {
-        const options = {
-          format: currentLayer.value.format,
-          transparent: currentLayer.value.transparent,
-          layers: currentLayer.value.layerName,
+    async function addVectorLayer(requestUrl, params) {
+      try {
+        if (vectorLayer.value) {
+          mapRef.value.removeLayer(vectorLayer.value);
+          vectorLayer.value = null;
+        }
+        const countOnly = {
+          ...params,
+          returnGeometry: false,
+          returnCountOnly: true,
         };
+        const validResp = await axios.get(requestUrl, { params: countOnly });
+        const count = computed(() => {
+          if (validResp.status === 200) { return validResp.data.properties.count; }
+          return null;
+        });
+        if (count.value) {
+          store.dispatch('startLoading');
 
-        switch (currentLayer.value.type) {
-          case 'vector':
-            break;
-          case 'wms':
-            if (vectorLayer.value) {
-              map.value.removeLayer(vectorLayer.value);
-              vectorLayer.value = null;
-            }
-            if (wmsLayer.value) {
-              map.value.removeLayer(wmsLayer.value);
-              wmsLayer.value = null;
-            }
-            addWmsLayer(currentLayer.value.url, options);
-            break;
-          default:
-        }
-      }
-    }
+          const response = await axios.get(requestUrl, { params });
+          geoJSONData.value = response.data;
 
-    watch(currentLayer, handleLayerSelection);
+          store.dispatch('alert/setAlert', { message: 'Your request has completed', color: 'success' });
+          vectorLayer.value = L.geoJSON(geoJSONData.value, { onEachFeature }).addTo(mapRef.value);
 
-    async function filterLayer(filters) {
-      if (currentLayer.value.type === 'vector') {
-        const params = filters.value.data;
-        if (Object.keys(params).includes('outStatistics')) {
-          const arr = JSON.parse(params.outStatistics);
-          const field = arr[0].onStatisticField;
-          const statsResponse = await axios.get(currentLayer.value.url, { params });
-          const minMaxFieldValue = Object.values(statsResponse.data.features[0].properties)[0];
-          const newParams = {
-            where: `${field}=${minMaxFieldValue}`,
-            returnGeometry: true,
-          };
-          await addVectorLayer(currentLayer.value.url, newParams);
+          vectorLayer.value.setStyle({
+            color: '#002642',
+            weight: 3,
+            opacity: 1,
+            fill: '#002642',
+            fillOpacity: 0.1,
+          });
+
+          mapRef.value.fitBounds(vectorLayer.value.getBounds());
+
+          store.dispatch('finishLoading');
         } else {
-          await addVectorLayer(currentLayer.value.url, params);
+          throw new Error('Your request did not return any results!');
+        }
+      } catch (err) {
+        store.dispatch('alert/setAlert', { message: `ERROR: ${err.message}`, color: 'error' });
+      }
+    }
+
+    async function handleaoiExtent(bbox) {
+      const bounds = bbox.features[0].geometry;
+      if (bounds) {
+        if (aoiLayer.value) {
+          mapRef.value.removeLayer(aoiLayer.value);
+          aoiLayer.value = null;
+        }
+        addUploadedAoi(bounds);
+      }
+    }
+
+    async function getLayer(req) {
+      if (currentLayer.value.type === 'vector') {
+        const aoiParams = {
+          geometry: aoiLayer.value.getBounds().toBBoxString(),
+          geometryType: 'esriGeometryEnvelope',
+          inSR: '4326',
+        };
+        if (req.value === true) {
+          await addVectorLayer(currentLayer.value.url, aoiParams);
+        } else {
+          const getSelectedSpatialRel = computed(
+            () => store.getters.getSelectedSpatialRel,
+          );
+          const params = req.value.data;
+          const aoiStatParams = {
+            ...params,
+            geometry: aoiLayer.value.getBounds().toBBoxString(),
+            geometryType: 'esriGeometryEnvelope',
+            inSR: '4326',
+            spatialRel: getSelectedSpatialRel.value,
+          };
+          if (Object.keys(params).includes('outStatistics')) {
+            const arr = JSON.parse(params.outStatistics);
+            const field = arr[0].onStatisticField;
+            if (aoiLayer.value) {
+              const aoiStatsResponse = await axios
+                .get(currentLayer.value.url, { params: aoiStatParams });
+              const minMaxFieldValue = Object.values(
+                aoiStatsResponse.data.features[0].properties,
+              )[0];
+              const featParams = {
+                where: `${field}=${minMaxFieldValue}`,
+                returnGeometry: true,
+              };
+              await addVectorLayer(currentLayer.value.url, featParams);
+            }
+          } else {
+            await addVectorLayer(currentLayer.value.url, aoiStatParams);
+          }
         }
       }
     }
 
+    watch(aoiExtent, (newVal) => {
+      if (newVal) {
+        handleaoiExtent(newVal);
+      } else if (!newVal) {
+        mapRef.value.removeLayer(aoiLayer.value);
+        aoiLayer.value = null;
+      }
+    });
     watch(layerReqUrl, () => {
-      filterLayer(layerReqUrl);
+      getLayer(layerReqUrl);
     });
 
-    watch(currentLayer, (newVal) => {
+    watch(aoiExtent, (newVal) => {
       if (!newVal) {
         if (vectorLayer.value) {
-          map.value.removeLayer(vectorLayer.value);
-        } else if (wmsLayer.value) {
-          map.value.removeLayer(wmsLayer.value);
+          mapRef.value.removeLayer(vectorLayer.value);
         }
       }
     });
 
     return {
-      map,
+      mapRef,
+      onMapReady,
       features,
-      filterLayer,
+      getLayer,
     };
   },
 };
@@ -150,6 +213,6 @@ export default {
 
 <style scoped>
 #mapContainer {
-  height: 600px;
+  height: 660px;
 }
 </style>

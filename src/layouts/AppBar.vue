@@ -1,27 +1,31 @@
 <template>
-  <v-app-bar flat>
-    <v-container class="fill-height d-flex align-center">
-      <v-avatar
-        class="me-10 ms-4"
-        image="@/assets/logo.png"
-        size="42"
-      ></v-avatar>
-
-      <h3 class="text-h4 font-weight-bold">Orbital Edge Imaging</h3>
-
-      <v-spacer></v-spacer>
-
-      <v-responsive max-width="260">
-        <v-text-field
-          density="compact"
-          hide-details
-          variant="solo"
-        ></v-text-field>
-      </v-responsive>
+  <div class="appbar-wrapper">
+    <v-container class="pa-0 appbar">
+      <router-link :to="{name:'Home'}" class="no-underline">
+        <div class="mb-2 d-flex align-center">
+          <v-avatar class="ms-4 me-6" image="@/assets/logo.png" size="55"></v-avatar>
+          <h3 class="text-secondary appbar-title">Orbital<br/>Edge Imaging</h3>
+        </div>
+      </router-link>
     </v-container>
-  </v-app-bar>
+  </div>
 </template>
 
 <script setup>
 //
 </script>
+<style>
+.no-underline {
+  text-decoration: none;
+}
+.appbar-wrapper {
+  border-bottom: 5px solid rgb(var(--v-theme-secondary)) !important;
+}
+.appbar {
+  border-bottom: 5px solid rgb(var(--v-theme-primary)) !important;
+}
+.appbar-title {
+  font-family: 'Orbitron', sans-serif;
+  text-transform: uppercase;
+}
+</style>

@@ -1,12 +1,15 @@
 import { createStore } from 'vuex';
+import alert from './alert';
 
 export default createStore({
   state() {
     return {
+      loading: false,
+      aoiExtent: null,
       layers: [
         {
           id: '0',
-          name: 'Germany - Passenger cars by fuel type',
+          name: 'DE: Passenger cars by fuel type',
           type: 'vector',
           layerAttr: [
             // { field: 'NAME', alias: 'NAME' },
@@ -41,18 +44,13 @@ export default createStore({
           transparent: true,
           url: 'https://services2.arcgis.com/jUpNdisbWqRpMo35/arcgis/rest/services/ab21b2/FeatureServer/0/query?outFields=*&f=geojson',
         },
-        {
-          id: '1',
-          name: 'Germany - Digital Topographic Map 1:250,000',
-          type: 'wms',
-          layerAttr: null,
-          layerName: 'dtk250',
-          format: 'image/png',
-          transparent: true,
-          url: 'http://sg.geodatenzentrum.de/wms_dtk250',
-        },
+      ],
+      spatialRel: [
+        { id: 0, value: 'esriSpatialRelContains', name: 'Contain' },
+        { id: 1, value: 'esriSpatialRelIntersects', name: 'Intersect' },
       ],
       selectedLayer: null,
+      selectedSpatialRel: null,
     };
   },
   getters: {
@@ -62,24 +60,54 @@ export default createStore({
     getSelectedLayer(state) {
       return state.selectedLayer;
     },
+    getSpatialRels(state) {
+      return state.spatialRel;
+    },
+    getSelectedSpatialRel(state) {
+      return state.selectedSpatialRel;
+    },
   },
   mutations: {
+    SET_UPLOADED_AOI(state, data) {
+      state.aoiExtent = data;
+    },
+    START_LOADING(state) {
+      state.loading = true;
+    },
+    FINISH_LOADING(state) {
+      state.loading = false;
+    },
+    CLEAR_UPLOADED_AOI(state) {
+      state.aoiExtent = null;
+    },
     SET_SELECTED_LAYER(state, layer) {
       state.selectedLayer = state.layers.find((l) => l.name.includes(layer.value));
     },
-    SET_LAYER_ATTR(state, { layerId, data }) {
-      const layer = state.layers.find((l) => l.id === layerId);
-      if (layer) {
-        layer.layerAttr = data;
-      }
+    SET_SELECTED_SPATIAL_REL(state, spatialRel) {
+      state.selectedSpatialRel = spatialRel.value;
     },
   },
   actions: {
+    setUploadedAoi({ commit }, data) {
+      commit('SET_UPLOADED_AOI', data);
+    },
+    startLoading({ commit }) {
+      commit('START_LOADING');
+    },
+    clearUploadedAoi({ commit }) {
+      commit('CLEAR_UPLOADED_AOI');
+    },
+    finishLoading({ commit }) {
+      commit('FINISH_LOADING');
+    },
     setSelectedLayer({ commit }, layer) {
       commit('SET_SELECTED_LAYER', layer);
     },
-    setLayerAttr({ commit }, { layerId, data }) {
-      commit('SET_LAYER_ATTR', { layerId, data });
+    setSelectedSpatialRel({ commit }, spatialRel) {
+      commit('SET_SELECTED_SPATIAL_REL', spatialRel);
     },
+  },
+  modules: {
+    alert,
   },
 });

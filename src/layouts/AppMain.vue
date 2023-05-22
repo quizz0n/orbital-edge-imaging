@@ -3,27 +3,25 @@
     <v-container>
       <v-row>
         <v-col cols="12" md="3">
-          <v-sheet rounded="lg">
+          <v-card rounded="lg">
             <v-list rounded="lg">
-              <oei-data-panel :attrs="layerAttr" @update-layer="sendLayerReq"/>
+              <app-bar />
+              <oei-data-panel :attrs="layerAttr"
+              @aoi-loaded="sendLayerExt"
+              @show-data="sendLayerReq"
+              @filter-layer="sendLayerReq"/>
             </v-list>
-          </v-sheet>
+          </v-card>
         </v-col>
 
         <v-col cols="12" md="9">
-          <v-sheet min-height="70vh" rounded="lg" class="map-panel-sheet">
+          <v-card min-height="72vh" rounded="lg" class="map-panel-sheet" :loading=loading>
             <v-list rounded="lg" class="map-panel-list d-flex flex-column justify-space-between">
               <v-list-item>
-                <oei-map @attr-fetched="sendData" :lyrRq="layerReq"/>
-              </v-list-item>
-              <v-list-item color="grey-lighten-4">
-                <v-divider class="my-2"></v-divider>
-                <v-list-item-title>
-                  Legend
-                </v-list-item-title>
+                <oei-map :extent="layerExt" :lyrRq="layerReq"/>
               </v-list-item>
             </v-list>
-          </v-sheet>
+          </v-card>
         </v-col>
       </v-row>
     </v-container>
@@ -31,33 +29,49 @@
 </template>
 
 <script>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
+import { useStore } from 'vuex';
+import AppBar from '@/layouts/AppBar.vue';
 import OeiDataPanel from '@/components/DataPanel.vue';
 import OeiMap from '@/components/MapPanel.vue';
 
 export default {
   name: 'AppMain',
   components: {
+    AppBar,
     OeiDataPanel,
     OeiMap,
   },
   setup() {
-    const layerAttr = ref(null);
+    const store = useStore();
 
+    const loading = computed(() => store.state.loading);
+
+    const layerAttr = ref(null);
+    const layerExt = ref(null);
     const layerReq = ref(null);
 
     const sendData = (data) => {
       layerAttr.value = data;
     };
-
+    const sendLayerExt = (data) => {
+      layerExt.value = { data };
+    };
     const sendLayerReq = (data) => {
-      layerReq.value = { data };
+      if (data) {
+        layerReq.value = { data };
+      } else {
+        layerReq.value = true;
+      }
     };
 
     return {
+      loading,
       layerAttr,
+      layerExt,
       layerReq,
       sendData,
+      sendLayerExt,
       sendLayerReq,
     };
   },
