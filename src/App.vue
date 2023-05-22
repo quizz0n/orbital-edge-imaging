@@ -14,11 +14,6 @@ export default {
 </script>
 <style>
   @font-face {
-    font-family: "Alegreya Sans SC";
-    src: local("Alegreya Sans SC"),
-    url(@/public/Alegreya_Sans_SC/AlegreyaSansSC-Medium.ttf) format("truetype")
-  }
-  @font-face {
     font-family: "Orbitron";
     src: local("Orbitron"),
     url(@/public/Orbitron/Orbitron-VariableFont_wght.ttf) format("truetype")
